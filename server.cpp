@@ -5,7 +5,7 @@
 #include <boost/asio/write.hpp>
 #include <iostream>
 #include <memory>
-#include <queue>
+#include <deque>
 
 using boost::asio::ip::tcp;
 
@@ -16,28 +16,38 @@ public:
 
     // Return true if job started immediately
     bool enter(const std::shared_ptr<boost::asio::deadline_timer> &timer) {
-        pending_queue.push(timer);
+        pending_queue.push_back(timer);
         return tick();
     }
 
-    // Exit is only to be called on active jobs
-    void exit() {
-        current_active--;
-        tick();
+    void exit(const std::shared_ptr<boost::asio::deadline_timer> &timer) {
+        auto active_position = std::find(active_queue.begin(), active_queue.end(), timer);
+
+        if(active_position != active_queue.end()) {
+            active_queue.erase(active_position);
+            tick();
+        } else {
+            auto pending_position = std::find(pending_queue.begin(), pending_queue.end(), timer);
+            pending_queue.erase(active_position);
+        }
     }
 
 private:
     const int max_active;
     int current_active;
-    std::queue<std::shared_ptr<boost::asio::deadline_timer> > pending_queue;
+    std::deque<std::shared_ptr<boost::asio::deadline_timer> > pending_queue;
+    std::deque<std::shared_ptr<boost::asio::deadline_timer> > active_queue;
 
     // Advance the queue
     // Return true if a job was started
     bool tick() {
-        if (!pending_queue.empty() && current_active < max_active) {
+        if (!pending_queue.empty() && active_queue.size() < max_active) {
+            // Grab next pending timer
             auto& timer = pending_queue.front();
-            pending_queue.pop();
-            current_active++;
+            // Add the timer to the active queue
+            active_queue.push_back(timer);
+            // Remove the timer from the pending queue
+            pending_queue.pop_front();
             // Cancel the timer so the co-routine that is waiting on it can proceed
             timer->cancel();
             return true;
@@ -57,7 +67,7 @@ public:
                                                                         queue(queue) {}
 
     ~Reservation() {
-        queue.exit();
+        queue.exit(queue_timer);
     }
 
     // Create an infinite timer that will be cancelled by the queue when the job is ready
@@ -117,7 +127,6 @@ public:
                                catch (std::exception &e) {
                                    std::cout << "throwin stuff: " << e.what() << std::endl;
                                }
-                               job_queue.exit();
                            });
     }
 
