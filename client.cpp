@@ -45,6 +45,13 @@ int main(int argc, char* argv[])
     std::cout << "Reply is: ";
     std::cout.write(reply, reply_length);
     std::cout << "\n";
+
+    // Simulated work
+    sleep(5);
+
+    char req = 'C';
+    boost::asio::write(s, boost::asio::buffer(&req, 1));
+
   }
   catch (std::exception& e)
   {
