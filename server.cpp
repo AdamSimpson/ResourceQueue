@@ -6,6 +6,8 @@
 #include <iostream>
 #include <memory>
 #include <deque>
+#include <cstring>
+#include <system_error>
 
 using boost::asio::ip::tcp;
 
@@ -28,7 +30,11 @@ public:
             tick();
         } else {
             auto pending_position = std::find(pending_queue.begin(), pending_queue.end(), timer);
+          if(pending_position != pending_queue.end())
             pending_queue.erase(active_position);
+          else {
+            std::cerr<<"Invalid timer marked for removal from queue!\n";
+          }
         }
     }
 
@@ -77,9 +83,7 @@ public:
         bool running = queue.enter(queue_timer);
         if(!running) {
             queue_timer->expires_at(boost::posix_time::pos_infin);
-            boost::system::error_code ec;
-            queue_timer->async_wait(yield[ec]);
-            std::cout << "ec: " << ec.message() << std::endl;
+            queue_timer->async_wait(yield);
         }
     }
 
@@ -92,47 +96,44 @@ private:
 
 class session : public std::enable_shared_from_this<session> {
 public:
-    explicit session(tcp::socket socket, JobQueue &job_queue) : socket_(std::move(socket)),
-                                                                job_queue(job_queue),
-                                                                strand_(socket_.get_io_service()) {}
+    explicit session(tcp::socket socket, JobQueue &job_queue) : socket(std::move(socket)),
+                                                                job_queue(job_queue) {}
 
     void go() {
         auto self(shared_from_this());
-        boost::asio::spawn(strand_,
+        boost::asio::spawn(socket.get_io_service(),
                            [this, self](boost::asio::yield_context yield) {
                                try {
 
                                    // Read initial request from client
-                                   char data[1];
-                                   std::size_t n = socket_.async_read_some(boost::asio::buffer(data), yield);
-                                   if (data[0] != 'B') {
-                                       std::cerr << "invalid value sent to server: " << data;
-                                       // throw something or another
+                                   char reserve_message[10];
+                                   std::size_t n = socket.async_read_some(boost::asio::buffer(reserve_message), yield);
+                                   if (strcmp(reserve_message, "reserve") != 0) {
+                                       throw std::system_error(EBADMSG, std::system_category());
                                    }
 
-                                   Reservation reservation(socket_.get_io_service(), job_queue);
+                                   Reservation reservation(socket.get_io_service(), job_queue);
                                    reservation.async_wait(yield);
 
                                    // Let the client know they are ready to run
-                                   data[0] = 'R';
-                                   socket_.async_write_some(boost::asio::buffer(data, 1), yield);
+                                   std::string ready_message("ready");
+                                   socket.async_write_some(boost::asio::buffer(ready_message), yield);
 
                                    // Listen for the client to finish
-                                   boost::system::error_code error;
-                                   size_t length = socket_.async_read_some(boost::asio::buffer(data), yield);
-                                   if (data[0] != 'C') {
-                                       std::cerr << "unexpected something or another\n";
+                                  char finished_message[10];
+                                 size_t length = socket.async_read_some(boost::asio::buffer(finished_message), yield);
+                                   if (strcmp(finished_message, "finished") != 0 ) {
+                                     throw std::system_error(EBADMSG, std::system_category());
                                    }
                                }
                                catch (std::exception &e) {
-                                   std::cout << "throwin stuff: " << e.what() << std::endl;
+                                   std::cout << "Exception: " << e.what() << std::endl;
                                }
                            });
     }
 
 private:
-    tcp::socket socket_;
-    boost::asio::io_service::strand strand_;
+    tcp::socket socket;
     JobQueue &job_queue;
 };
 
@@ -163,7 +164,7 @@ int main(int argc, char *argv[]) {
         io_service.run();
     }
     catch (std::exception &e) {
-        std::cerr << "Exception: " << e.what() << "\n";
+        std::cerr << "Exception: " << e.what() << std::endl;
     }
 
     return 0;
