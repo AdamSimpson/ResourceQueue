@@ -96,6 +96,15 @@ private:
     JobQueue &queue;
 };
 
+// Async read a line message into a string
+std::string async_read_line(tcp::socket& socket, boost::asio::yield_context& yield) {
+    boost::asio::streambuf reserve_buffer;
+    boost::asio::async_read_until(socket, reserve_buffer, '\n', yield);
+    std::istream reserve_stream(&reserve_buffer);
+    std::string reserve_string;
+    std::getline(reserve_stream, reserve_string);
+    return reserve_string;
+}
 
 class session : public std::enable_shared_from_this<session> {
 public:
@@ -109,28 +118,22 @@ public:
                                try {
 
                                    // Read initial request from client
-                                   boost::asio::streambuf reserve_buffer;
-                                   boost::asio::async_read_until(socket, reserve_buffer, '\0', yield);
-                                   std::istream reserve_stream(&reserve_buffer);
-                                   std::string reserve_string;
-                                   std::getline(reserve_stream, reserve_string, '\0');
-
-                                   if (reserve_string != "request") {
+                                   auto reserve_message = async_read_line(socket, yield);
+                                   if (reserve_message != "request") {
                                        throw std::system_error(EBADMSG, std::system_category());
                                    }
 
+                                   // Wait in the queue for a build slot to open up
                                    Reservation reservation(socket.get_io_service(), job_queue);
                                    reservation.async_wait(yield);
 
                                    // Let the client know they are ready to run
                                    std::string ready_message("ready");
-                                   socket.async_write_some(boost::asio::buffer(ready_message), yield);
+                                   async_write(socket, boost::asio::buffer(ready_message), yield);
 
                                    // Listen for the client to finish
-                                   char finished_message[10];
-                                   socket.async_read_some(boost::asio::buffer(finished_message, 10),
-                                                                          yield);
-                                   if (strcmp(finished_message, "finished") != 0) {
+                                   auto finished_message = async_read_line(socket, yield);
+                                   if (finished_message != "finished") {
                                        throw std::system_error(EBADMSG, std::system_category());
                                    }
                                }
