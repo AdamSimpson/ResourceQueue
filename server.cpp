@@ -3,11 +3,14 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/read_until.hpp>
+#include <boost/asio/streambuf.hpp>
 #include <iostream>
 #include <memory>
 #include <deque>
 #include <cstring>
 #include <system_error>
+#include <string>
 
 using boost::asio::ip::tcp;
 
@@ -25,16 +28,16 @@ public:
     void exit(const std::shared_ptr<boost::asio::deadline_timer> &timer) {
         auto active_position = std::find(active_queue.begin(), active_queue.end(), timer);
 
-        if(active_position != active_queue.end()) {
+        if (active_position != active_queue.end()) {
             active_queue.erase(active_position);
             tick();
         } else {
             auto pending_position = std::find(pending_queue.begin(), pending_queue.end(), timer);
-          if(pending_position != pending_queue.end())
-            pending_queue.erase(active_position);
-          else {
-            std::cerr<<"Invalid timer marked for removal from queue!\n";
-          }
+            if (pending_position != pending_queue.end())
+                pending_queue.erase(active_position);
+            else {
+                std::cerr << "Invalid timer marked for removal from queue!\n";
+            }
         }
     }
 
@@ -49,7 +52,7 @@ private:
     bool tick() {
         if (!pending_queue.empty() && active_queue.size() < max_active) {
             // Grab next pending timer
-            auto& timer = pending_queue.front();
+            auto &timer = pending_queue.front();
             // Add the timer to the active queue
             active_queue.push_back(timer);
             // Remove the timer from the pending queue
@@ -81,7 +84,7 @@ public:
         // When entered into the queue the queue will tick and possibly expire the timer
         // if the timer is expired async_wait will deadlock so we take care to only call it on a valid timer
         bool running = queue.enter(queue_timer);
-        if(!running) {
+        if (!running) {
             queue_timer->expires_at(boost::posix_time::pos_infin);
             queue_timer->async_wait(yield);
         }
@@ -106,9 +109,13 @@ public:
                                try {
 
                                    // Read initial request from client
-                                   char reserve_message[10];
-                                   std::size_t n = socket.async_read_some(boost::asio::buffer(reserve_message, 10), yield);
-                                   if (strcmp(reserve_message, "reserve") != 0) {
+                                   boost::asio::streambuf reserve_buffer;
+                                   boost::asio::async_read_until(socket, reserve_buffer, '\r', yield);
+                                   std::istream reserve_stream(&reserve_buffer);
+                                   std::string reserve_string;
+                                   std::getline(reserve_stream, reserve_string, '\r');
+
+                                   if (reserve_string != "request") {
                                        throw std::system_error(EBADMSG, std::system_category());
                                    }
 
@@ -120,10 +127,11 @@ public:
                                    socket.async_write_some(boost::asio::buffer(ready_message), yield);
 
                                    // Listen for the client to finish
-                                  char finished_message[10];
-                                 size_t length = socket.async_read_some(boost::asio::buffer(finished_message, 10), yield);
-                                   if (strcmp(finished_message, "finished") != 0 ) {
-                                     throw std::system_error(EBADMSG, std::system_category());
+                                   char finished_message[10];
+                                   socket.async_read_some(boost::asio::buffer(finished_message, 10),
+                                                                          yield);
+                                   if (strcmp(finished_message, "finished") != 0) {
+                                       throw std::system_error(EBADMSG, std::system_category());
                                    }
                                }
                                catch (std::exception &e) {

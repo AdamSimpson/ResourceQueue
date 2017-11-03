@@ -16,8 +16,6 @@
 
 using boost::asio::ip::tcp;
 
-enum { max_length = 1024 };
-
 int main(int argc, char* argv[])
 {
   try
@@ -30,15 +28,15 @@ int main(int argc, char* argv[])
 
     boost::asio::io_service io_service;
 
-    tcp::socket s(io_service);
+    tcp::socket socket(io_service);
     tcp::resolver resolver(io_service);
-    boost::asio::connect(s, resolver.resolve({argv[1], argv[2]}));
+    boost::asio::connect(socket, resolver.resolve({argv[1], argv[2]}));
 
     std::string message("request");
-    boost::asio::write(s, boost::asio::buffer(message));
+    boost::asio::write(socket, boost::asio::buffer(message));
 
     char read_buffer[6];
-    boost::asio::read(s, boost::asio::buffer(read_buffer, 6));
+    boost::asio::read(socket, boost::asio::buffer(read_buffer, 6));
     if(message != "ready") {
       throw std::system_error(EBADMSG, std::system_category());
     }
@@ -49,7 +47,7 @@ int main(int argc, char* argv[])
 
     // Let the queue know we're finished
     message = "finished";
-    boost::asio::write(s, boost::asio::buffer(message));
+    boost::asio::write(socket, boost::asio::buffer(message));
 
   }
   catch (std::exception& e) {
