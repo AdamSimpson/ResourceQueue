@@ -12,6 +12,7 @@
 #include <cstring>
 #include <iostream>
 #include <boost/asio.hpp>
+#include <system_error>
 
 using boost::asio::ip::tcp;
 
@@ -33,28 +34,25 @@ int main(int argc, char* argv[])
     tcp::resolver resolver(io_service);
     boost::asio::connect(s, resolver.resolve({argv[1], argv[2]}));
 
-    std::cout << "Enter message: ";
-    char request[max_length];
-    std::cin.getline(request, max_length);
-    size_t request_length = std::strlen(request);
-    boost::asio::write(s, boost::asio::buffer(request, request_length));
+    std::string message("request");
+    boost::asio::write(s, boost::asio::buffer(message));
 
-    char reply[max_length];
-    size_t reply_length = boost::asio::read(s,
-                                            boost::asio::buffer(reply, request_length));
-    std::cout << "Reply is: ";
-    std::cout.write(reply, reply_length);
-    std::cout << "\n";
+    char read_buffer[6];
+    boost::asio::read(s, boost::asio::buffer(read_buffer, 6));
+    if(message != "ready") {
+      throw std::system_error(EBADMSG, std::system_category());
+    }
 
     // Simulated work
+    std::cout<<"work starting\n";
     sleep(5);
 
-    char req = 'C';
-    boost::asio::write(s, boost::asio::buffer(&req, 1));
+    // Let the queue know we're finished
+    message = "finished";
+    boost::asio::write(s, boost::asio::buffer(message));
 
   }
-  catch (std::exception& e)
-  {
+  catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << "\n";
   }
 

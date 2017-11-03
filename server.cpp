@@ -107,7 +107,7 @@ public:
 
                                    // Read initial request from client
                                    char reserve_message[10];
-                                   std::size_t n = socket.async_read_some(boost::asio::buffer(reserve_message), yield);
+                                   std::size_t n = socket.async_read_some(boost::asio::buffer(reserve_message, 10), yield);
                                    if (strcmp(reserve_message, "reserve") != 0) {
                                        throw std::system_error(EBADMSG, std::system_category());
                                    }
@@ -121,7 +121,7 @@ public:
 
                                    // Listen for the client to finish
                                   char finished_message[10];
-                                 size_t length = socket.async_read_some(boost::asio::buffer(finished_message), yield);
+                                 size_t length = socket.async_read_some(boost::asio::buffer(finished_message, 10), yield);
                                    if (strcmp(finished_message, "finished") != 0 ) {
                                      throw std::system_error(EBADMSG, std::system_category());
                                    }
