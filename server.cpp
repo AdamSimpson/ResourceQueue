@@ -110,10 +110,10 @@ public:
 
                                    // Read initial request from client
                                    boost::asio::streambuf reserve_buffer;
-                                   boost::asio::async_read_until(socket, reserve_buffer, '\r', yield);
+                                   boost::asio::async_read_until(socket, reserve_buffer, '\0', yield);
                                    std::istream reserve_stream(&reserve_buffer);
                                    std::string reserve_string;
-                                   std::getline(reserve_stream, reserve_string, '\r');
+                                   std::getline(reserve_stream, reserve_string, '\0');
 
                                    if (reserve_string != "request") {
                                        throw std::system_error(EBADMSG, std::system_category());
