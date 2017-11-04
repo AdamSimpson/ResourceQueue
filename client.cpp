@@ -16,6 +16,15 @@
 
 using boost::asio::ip::tcp;
 
+std::string read_line(tcp::socket& socket) {
+    boost::asio::streambuf reserve_buffer;
+    boost::asio::read_until(socket, reserve_buffer, '\n');
+    std::istream reserve_stream(&reserve_buffer);
+    std::string reserve_string;
+    std::getline(reserve_stream, reserve_string);
+    return reserve_string;
+}
+
 int main(int argc, char* argv[])
 {
   try
@@ -35,9 +44,8 @@ int main(int argc, char* argv[])
     std::string message("request\n");
     boost::asio::write(socket, boost::asio::buffer(message));
 
-    char read_buffer[6];
-    boost::asio::read(socket, boost::asio::buffer(read_buffer, 6));
-    if(message != "ready") {
+    auto ready_message = read_line(socket);
+    if(ready_message != "ready") {
       throw std::system_error(EBADMSG, std::system_category());
     }
 
@@ -46,7 +54,7 @@ int main(int argc, char* argv[])
     sleep(5);
 
     // Let the queue know we're finished
-    message = "finished";
+    message = "finished\n";
     boost::asio::write(socket, boost::asio::buffer(message));
 
   }

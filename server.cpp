@@ -110,7 +110,6 @@ class session : public std::enable_shared_from_this<session> {
 public:
     explicit session(tcp::socket socket, JobQueue &job_queue) : socket(std::move(socket)),
                                                                 job_queue(job_queue) {}
-
     void go() {
         auto self(shared_from_this());
         boost::asio::spawn(socket.get_io_service(),
@@ -128,7 +127,7 @@ public:
                                    reservation.async_wait(yield);
 
                                    // Let the client know they are ready to run
-                                   std::string ready_message("ready");
+                                   std::string ready_message("ready\n");
                                    async_write(socket, boost::asio::buffer(ready_message), yield);
 
                                    // Listen for the client to finish
