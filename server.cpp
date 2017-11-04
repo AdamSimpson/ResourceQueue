@@ -97,7 +97,7 @@ private:
 };
 
 // Async read a line message into a string
-std::string async_read_line(tcp::socket& socket, boost::asio::yield_context& yield) {
+std::string async_read_line(tcp::socket &socket, boost::asio::yield_context &yield) {
     boost::asio::streambuf reserve_buffer;
     boost::asio::async_read_until(socket, reserve_buffer, '\n', yield);
     std::istream reserve_stream(&reserve_buffer);
@@ -110,6 +110,7 @@ class session : public std::enable_shared_from_this<session> {
 public:
     explicit session(tcp::socket socket, JobQueue &job_queue) : socket(std::move(socket)),
                                                                 job_queue(job_queue) {}
+
     void go() {
         auto self(shared_from_this());
         boost::asio::spawn(socket.get_io_service(),
@@ -118,23 +119,12 @@ public:
 
                                    // Read initial request from client
                                    auto reserve_message = async_read_line(socket, yield);
-                                   if (reserve_message != "request") {
+                                   if(reserve_message == "queue_request")
+                                       handle_queue_request(yield);
+                                   else if (reserve_message == "diagnostic_request")
+                                       handle_diagnostic_request(yield);
+                                   else
                                        throw std::system_error(EBADMSG, std::system_category());
-                                   }
-
-                                   // Wait in the queue for a build slot to open up
-                                   Reservation reservation(socket.get_io_service(), job_queue);
-                                   reservation.async_wait(yield);
-
-                                   // Let the client know they are ready to run
-                                   std::string ready_message("ready\n");
-                                   async_write(socket, boost::asio::buffer(ready_message), yield);
-
-                                   // Listen for the client to finish
-                                   auto finished_message = async_read_line(socket, yield);
-                                   if (finished_message != "finished") {
-                                       throw std::system_error(EBADMSG, std::system_category());
-                                   }
                                }
                                catch (std::exception &e) {
                                    std::cout << "Exception: " << e.what() << std::endl;
@@ -143,6 +133,24 @@ public:
     }
 
 private:
+    void handle_queue_request(boost::asio::yield_context yield) {
+        // Wait in the queue for a build slot to open up
+        Reservation reservation(socket.get_io_service(), job_queue);
+        reservation.async_wait(yield);
+
+        // Let the client know they are ready to run
+        std::string ready_message("ready\n");
+        async_write(socket, boost::asio::buffer(ready_message), yield);
+
+        // Listen for the client to finish
+        auto finished_message = async_read_line(socket, yield);
+        if (finished_message != "finished") {
+            throw std::system_error(EBADMSG, std::system_category());
+        }
+    }
+    void handle_diagnostic_request(boost::asio::yield_context yield) {
+      std::cout<<"queue stuff here...\n";
+    }
     tcp::socket socket;
     JobQueue &job_queue;
 };

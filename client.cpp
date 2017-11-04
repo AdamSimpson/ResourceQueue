@@ -25,12 +25,9 @@ std::string read_line(tcp::socket& socket) {
     return reserve_string;
 }
 
-int main(int argc, char* argv[])
-{
-  try
-  {
-    if (argc != 3)
-    {
+int main(int argc, char* argv[]) {
+  try {
+    if (argc != 3) {
       std::cerr << "Usage: blocking_tcp_echo_client <host> <port>\n";
       return 1;
     }
@@ -41,7 +38,7 @@ int main(int argc, char* argv[])
     tcp::resolver resolver(io_service);
     boost::asio::connect(socket, resolver.resolve({argv[1], argv[2]}));
 
-    std::string message("request\n");
+    std::string message("queue_request\n");
     boost::asio::write(socket, boost::asio::buffer(message));
 
     auto ready_message = read_line(socket);
