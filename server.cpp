@@ -16,8 +16,8 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/serialization.hpp>
 
-using boost::asio::ip::tcp;
 namespace asio = boost::asio;
+using asio::ip::tcp;
 
 // Resource which is limited, access to resource is controlled by the ResourceQueue
 struct Resource {
@@ -245,7 +245,8 @@ int main(int argc, char *argv[]) {
         Resource resource;
         resource.loop_id = 0;
         resource.host = std::string("localhost");
-
+        job_queue.add_resource(resource);
+        resource.loop_id = 1;
         job_queue.add_resource(resource);
 
         // Wait for connections

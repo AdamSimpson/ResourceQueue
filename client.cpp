@@ -7,7 +7,8 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/serialization.hpp>
 
-using boost::asio::ip::tcp;
+namespace asio = boost::asio;
+using asio::ip::tcp;
 
 struct Resource {
     int loop_id;
@@ -25,8 +26,8 @@ namespace boost {
 } // namespace boost
 
 std::string read_line(tcp::socket &socket) {
-    boost::asio::streambuf reserve_buffer;
-    boost::asio::read_until(socket, reserve_buffer, '\n');
+    asio::streambuf reserve_buffer;
+    asio::read_until(socket, reserve_buffer, '\n');
     std::istream reserve_stream(&reserve_buffer);
     std::string reserve_string;
     std::getline(reserve_stream, reserve_string);
@@ -40,12 +41,12 @@ Resource read_resource(tcp::socket &socket) {
     // Read in 4 byte header
     const size_t header_size = 4;
     std::string header("", header_size);
-    boost::asio::read(socket, boost::asio::buffer(&header[0], header_size));
+    asio::read(socket, asio::buffer(&header[0], header_size));
     uint32_t resource_size = std::stoi(header);
 
     // Read in serialized Resource
     std::string serialized_resource("", resource_size);
-    boost::asio::read(socket, boost::asio::buffer(&serialized_resource[0], resource_size));
+    asio::read(socket, asio::buffer(&serialized_resource[0], resource_size));
 
     // de-serialize Resource
     Resource resource;
@@ -63,14 +64,14 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        boost::asio::io_service io_service;
+        asio::io_service io_service;
 
         tcp::socket socket(io_service);
         tcp::resolver resolver(io_service);
-        boost::asio::connect(socket, resolver.resolve({argv[1], argv[2]}));
+        asio::connect(socket, resolver.resolve({argv[1], argv[2]}));
 
         std::string message("queue_request\n");
-        boost::asio::write(socket, boost::asio::buffer(message));
+        asio::write(socket, asio::buffer(message));
 
         auto resource = read_resource(socket);
         std::cout << "acquired resource: " << resource.host << ", loop " << resource.loop_id << std::endl;
@@ -81,7 +82,7 @@ int main(int argc, char *argv[]) {
 
         // Let the queue know we're finished
         message = "finished\n";
-        boost::asio::write(socket, boost::asio::buffer(message));
+        asio::write(socket, asio::buffer(message));
 
     }
     catch (std::exception &e) {
