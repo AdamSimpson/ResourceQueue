@@ -8,9 +8,13 @@
 #include <iostream>
 #include <memory>
 #include <deque>
+#include <list>
 #include <cstring>
 #include <system_error>
 #include <string>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/serialization.hpp>
 
 using boost::asio::ip::tcp;
 namespace asio = boost::asio;
@@ -18,42 +22,54 @@ namespace asio = boost::asio;
 // Resource which is limited, access to resource is controlled by the ResourceQueue
 struct Resource {
     int loop_id;
+    std::string host;
 };
 
-// Represent a
+namespace boost {
+namespace serialization {
+
+template<class Archive>
+void serialize(Archive & ar, Resource & res, const unsigned int version) {
+    ar & res.loop_id;
+    ar & res.host;
+}
+} // namespace serialization
+} // namespace boost
+
+
+// Reservations are handled by the queue and assigned resources as available
 class Reservation {
 public:
     Reservation(asio::io_service &io_service) : io_service(io_service),
-                                                       ready_timer(io_service),
-                                                       reservation_ready(false) {
-    }
+                                                ready_timer(io_service),
+                                                active(false) {}
 
     // Create an infinite timer that will be cancelled by the queue when the job is ready
-    Resource async_wait(asio::yield_context yield) {
+    void async_wait(asio::yield_context yield) {
         // When entered into the queue the queue will tick and possibly expire call this->ready()
         // If the timer is expired async_wait will deadlock so we take care to only call it on a valid timer
-        if (!reservation_ready) {
+        if (!active) {
             ready_timer.expires_at(boost::posix_time::pos_infin);
             // On timer cancel we will get an operation aborted error from async_wait
             boost::system::error_code ec;
             ready_timer.async_wait(yield[ec]);
-            if(ec != asio::error::operation_aborted) {
+            if (ec != asio::error::operation_aborted) {
                 throw std::system_error(EBADE, std::system_category());
             }
         }
-        return resource;
     }
 
     // Callback used by ResourceQueue to cancel the timer which signals our reservation is ready
     void ready(Resource acquired_resource) {
-        reservation_ready = true;
         resource = acquired_resource;
+        active = true;
         ready_timer.cancel();
     }
 
-private:
-    bool reservation_ready;
+    bool active;
     Resource resource;
+
+private:
     asio::io_service &io_service;
     asio::deadline_timer ready_timer;
 };
@@ -61,51 +77,51 @@ private:
 // Execute queued callback functions as resources allow
 class ResourceQueue {
 public:
-    explicit ResourceQueue(int max_active) : max_active{max_active} {}
-
     // Create a new queue reservation and return it to the requester
     void enter(Reservation *reservation) {
         pending_queue.push_back(reservation);
         tick();
     }
 
+    void add_resource(Resource resource) {
+      available_resources.push_back(resource);
+    }
+
+    // On exit release any active resources or remove from pending queue
     void exit(Reservation *reservation) noexcept {
         try {
-            auto active_position = std::find(active_queue.begin(), active_queue.end(), reservation);
-
-            if (active_position != active_queue.end()) {
-                active_queue.erase(active_position);
+            if(reservation->active) {
+                add_resource(reservation->resource);
                 tick();
             } else {
                 auto pending_position = std::find(pending_queue.begin(), pending_queue.end(), reservation);
                 if (pending_position != pending_queue.end())
-                    pending_queue.erase(active_position);
+                    pending_queue.erase(pending_position);
                 else {
-                    throw std::system_error(EADDRNOTAVAIL, std::generic_category(), "reservation not found in pending or active queues");
+                    throw std::system_error(EADDRNOTAVAIL, std::generic_category(),
+                                            "reservation not found in pending or active queues");
                 }
             }
-        } catch(std::exception const& e) {
-            std::cerr<<"Exception in ResourceQueue.exit(): "<<e.what()<<std::endl;
+        } catch (std::exception const &e) {
+            std::cerr << "Exception in ResourceQueue.exit(): " << e.what() << std::endl;
         }
     }
 
 private:
-    const int max_active;
+    std::list<Resource> available_resources;
     std::deque<Reservation *> pending_queue;
-    std::deque<Reservation *> active_queue;
 
     // Advance the queue
     // Return true if a job was started
     void tick() {
-        if (!pending_queue.empty() && active_queue.size() < max_active) {
-            // Grab next pending reservation
+        if (!pending_queue.empty() && !available_resources.empty()) {
+            // Grab next pending reservation and remove it from queue
             auto reservation = pending_queue.front();
-            // Add the reservation to the active queue
-            active_queue.push_back(reservation);
-            // Remove the reservation from the pending queue
             pending_queue.pop_front();
+            // Grab an available resource and remove it from available
+            auto resource = available_resources.front();
+            available_resources.pop_front();
             // Invoke the reservation callback to inform the request it's ready to run
-            Resource resource; // Make up a resource for now
             reservation->ready(resource);
         }
     }
@@ -115,8 +131,8 @@ private:
 class ReservationRequest {
 public:
     ReservationRequest(asio::io_service &io_service, ResourceQueue &queue) : io_service(io_service),
-                                                                                    queue(queue),
-                                                                                    reservation(io_service) {
+                                                                             queue(queue),
+                                                                             reservation(io_service) {
         queue.enter(&reservation);
     }
 
@@ -125,8 +141,8 @@ public:
     }
 
     Resource async_wait(asio::yield_context yield) {
-        auto resource = reservation.async_wait(yield);
-        return resource;
+        reservation.async_wait(yield);
+        return reservation.resource;
     }
 
 private:
@@ -154,33 +170,53 @@ public:
     void go() {
         auto self(shared_from_this());
         asio::spawn(socket.get_io_service(),
-                           [this, self](asio::yield_context yield) {
-                               try {
+                    [this, self](asio::yield_context yield) {
+                        try {
 
-                                   // Read initial request type from client
-                                   auto reserve_message = async_read_line(socket, yield);
-                                   if (reserve_message == "queue_request")
-                                       handle_queue_request(yield);
-                                   else if (reserve_message == "diagnostic_request")
-                                       handle_diagnostic_request(yield);
-                                   else
-                                       throw std::system_error(EPERM, std::system_category());
-                               }
-                               catch (std::exception &e) {
-                                   std::cout << "Exception: " << e.what() << std::endl;
-                               }
-                           });
+                            // Read initial request type from client
+                            auto reserve_message = async_read_line(socket, yield);
+                            if (reserve_message == "queue_request")
+                                handle_queue_request(yield);
+                            else if (reserve_message == "diagnostic_request")
+                                handle_diagnostic_request(yield);
+                            else
+                                throw std::system_error(EPERM, std::system_category());
+                        }
+                        catch (std::exception &e) {
+                            std::cout << "Exception: " << e.what() << std::endl;
+                        }
+                    });
     }
 
 private:
+    // Async write of a Resource
+    // Send header consisting of 4 byte size, in bytes, of archived Resource
+    // followed by our serialized object
+    void async_write_resource(const Resource& resource, asio::yield_context yield) {
+        // Serialize the data into a string
+        std::ostringstream archive_stream;
+        boost::archive::text_oarchive archive(archive_stream);
+        archive << resource;
+        auto serialized_resource = archive_stream.str();
+
+        // Construct byte count header
+        auto header = std::to_string(serialized_resource.size());
+        header.resize(4);
+
+        // Send header consisting of 4 byte size, in bytes, of archived Resource
+        std::vector<boost::asio::const_buffer> buffers;
+        buffers.push_back(asio::buffer(header));
+        buffers.push_back(asio::buffer(serialized_resource));
+        async_write(socket, buffers, yield);
+    }
+
+    // Handle a request to enter the queue to aquire a resource
     void handle_queue_request(asio::yield_context yield) {
         // Wait in the queue for a reservation to begin
         ReservationRequest reservation(socket.get_io_service(), queue);
         auto resource = reservation.async_wait(yield);
 
-        // Let the client know they are ready to run
-        std::string ready_message("ready\n");
-        async_write(socket, asio::buffer(ready_message), yield);
+        async_write_resource(resource, yield);
 
         // Listen for the client to finish
         auto finished_message = async_read_line(socket, yield);
@@ -207,21 +243,27 @@ int main(int argc, char *argv[]) {
 
         asio::io_service io_service;
 
-        ResourceQueue job_queue(2);
+        ResourceQueue job_queue;
+        Resource resource;
+        resource.loop_id = 0;
+        resource.host = std::string("localhost");
 
+        job_queue.add_resource(resource);
+
+        // Wait for connections
         asio::spawn(io_service,
-                           [&](asio::yield_context yield) {
-                               tcp::acceptor acceptor(io_service,
-                                                      tcp::endpoint(tcp::v4(), std::atoi(argv[1])));
+                    [&](asio::yield_context yield) {
+                        tcp::acceptor acceptor(io_service,
+                                               tcp::endpoint(tcp::v4(), std::atoi(argv[1])));
 
-                               for (;;) {
-                                   boost::system::error_code ec;
-                                   tcp::socket socket(io_service);
-                                   acceptor.async_accept(socket, yield[ec]);
-                                   if (!ec)
-                                       std::make_shared<connection>(std::move(socket), job_queue)->go();
-                               }
-                           });
+                        for (;;) {
+                            boost::system::error_code ec;
+                            tcp::socket socket(io_service);
+                            acceptor.async_accept(socket, yield[ec]);
+                            if (!ec)
+                                std::make_shared<connection>(std::move(socket), job_queue)->go();
+                        }
+                    });
 
         io_service.run();
     }

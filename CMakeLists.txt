@@ -13,7 +13,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(ResourceQueueServer ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(ResourceQueueClient ${CMAKE_THREAD_LIBS_INIT})
 
-find_package(Boost 1.64.0 COMPONENTS system coroutine REQUIRED)
+find_package(Boost 1.64.0 COMPONENTS system coroutine serialization REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(ResourceQueueServer ${Boost_LIBRARIES})
 target_link_libraries(ResourceQueueClient ${Boost_LIBRARIES})
