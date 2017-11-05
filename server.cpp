@@ -204,10 +204,8 @@ private:
         header.resize(4);
 
         // Send header consisting of 4 byte size, in bytes, of archived Resource
-        std::vector<boost::asio::const_buffer> buffers;
-        buffers.push_back(asio::buffer(header));
-        buffers.push_back(asio::buffer(serialized_resource));
-        async_write(socket, buffers, yield);
+        async_write(socket, asio::buffer(header), yield);
+        async_write(socket, asio::buffer(serialized_resource), yield);
     }
 
     // Handle a request to enter the queue to aquire a resource

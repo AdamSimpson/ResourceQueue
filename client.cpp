@@ -39,21 +39,13 @@ std::string read_line(tcp::socket &socket) {
 Resource read_resource(tcp::socket &socket) {
     // Read in 4 byte header
     const size_t header_size = 4;
-    boost::asio::streambuf header_buf;
-    boost::asio::read(socket, header_buf,
-                      boost::asio::transfer_exactly(header_size));
-    std::string header(
-            boost::asio::buffers_begin(header_buf.data()),
-            boost::asio::buffers_begin(header_buf.data()) + header_size);
+    std::string header("", header_size);
+    boost::asio::read(socket, boost::asio::buffer(&header[0], header_size));
     uint32_t resource_size = std::stoi(header);
 
     // Read in serialized Resource
-    boost::asio::streambuf resource_buf;
-    boost::asio::read(socket, resource_buf,
-                      boost::asio::transfer_exactly(resource_size));
-    std::string serialized_resource(
-            boost::asio::buffers_begin(resource_buf.data()),
-            boost::asio::buffers_begin(resource_buf.data()) + resource_size);
+    std::string serialized_resource("", resource_size);
+    boost::asio::read(socket, boost::asio::buffer(&serialized_resource[0], resource_size));
 
     // de-serialize Resource
     Resource resource;
