@@ -2,8 +2,6 @@
 #include <cstring>
 #include <iostream>
 #include <boost/asio.hpp>
-#include <system_error>
-#include <boost/serialization/serialization.hpp>
 #include "Resource.h"
 
 namespace asio = boost::asio;
