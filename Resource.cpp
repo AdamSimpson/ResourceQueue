@@ -10,7 +10,7 @@ Resource read_resource(tcp::socket &socket) {
     const size_t header_size = 4;
     std::string header("", header_size);
     asio::read(socket, asio::buffer(&header[0], header_size));
-    uint32_t resource_size = std::stoi(header);
+    unsigned int resource_size = std::stoul(header);
 
     // Read in serialized Resource
     std::string serialized_resource("", resource_size);

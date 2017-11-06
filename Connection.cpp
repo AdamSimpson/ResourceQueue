@@ -5,8 +5,6 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/streambuf.hpp>
-#include <boost/asio/write.hpp>
-
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
@@ -32,21 +30,21 @@ void Connection::go() {
                 });
 }
 
-    void Connection::async_write_resource(const Resource& resource, asio::yield_context yield) {
-        // Serialize the data into a string
-        std::ostringstream archive_stream;
-        boost::archive::text_oarchive archive(archive_stream);
-        archive << resource;
-        auto serialized_resource = archive_stream.str();
+void Connection::async_write_resource(const Resource &resource, asio::yield_context yield) {
+    // Serialize the data into a string
+    std::ostringstream archive_stream;
+    boost::archive::text_oarchive archive(archive_stream);
+    archive << resource;
+    auto serialized_resource = archive_stream.str();
 
-        // Construct byte count header
-        auto header = std::to_string(serialized_resource.size());
-        header.resize(4);
+    // Construct byte count header
+    auto header = std::to_string(serialized_resource.size());
+    header.resize(4);
 
-        // Send header consisting of 4 byte size, in bytes, of archived Resource
-        async_write(socket, asio::buffer(header), yield);
-        async_write(socket, asio::buffer(serialized_resource), yield);
-    }
+    // Send header consisting of 4 byte size, in bytes, of archived Resource
+    async_write(socket, asio::buffer(header), yield);
+    async_write(socket, asio::buffer(serialized_resource), yield);
+}
 
 void Connection::handle_queue_request(asio::yield_context yield) {
     // Wait in the queue for a reservation to begin

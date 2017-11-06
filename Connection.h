@@ -16,9 +16,9 @@ private:
     // Async write of a Resource
     // Send header consisting of 4 byte size, in bytes, of archived Resource
     // followed by our serialized object
-    void async_write_resource(const Resource& resource, asio::yield_context yield);
+    void async_write_resource(const Resource &resource, asio::yield_context yield);
 
-    // Handle a request to enter the queue to aquire a resource
+    // Handle a request to enter the queue to acquire a resource
     void handle_queue_request(asio::yield_context yield);
 
     // Send queue diagnostic information

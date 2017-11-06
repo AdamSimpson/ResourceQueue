@@ -13,7 +13,7 @@ void ResourceQueue::add_resource(Resource resource) {
 
 void ResourceQueue::exit(Reservation *reservation) noexcept {
     try {
-        if(reservation->active) {
+        if (reservation->active) {
             add_resource(reservation->resource);
             tick();
         } else {
