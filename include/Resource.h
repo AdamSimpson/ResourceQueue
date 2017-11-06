@@ -24,5 +24,3 @@ namespace boost {
         }
     } // namespace serialization
 } // namespace boost
-
-Resource read_resource(tcp::socket &socket);
