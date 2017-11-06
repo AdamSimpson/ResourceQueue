@@ -3,17 +3,46 @@ project(ResourceQueue)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(SOURCE_FILES_SERVER main.cpp Resource.h Reservation.cpp Reservation.h ResourceQueue.cpp ResourceQueue.h ReservationRequest.cpp ReservationRequest.h Connection.cpp Connection.h)
-set(SOURCE_FILES_CLIENT client.cpp Resource.h Resource.cpp)
+# Files related to the server
+set(SOURCE_FILES_SERVER src/main.cpp
+        include/Resource.h
+        src/Reservation.cpp
+        include/Reservation.h
+        src/ResourceQueue.cpp
+        include/ResourceQueue.h
+        src/ReservationRequest.cpp
+        include/ReservationRequest.h
+        src/Connection.cpp
+        include/Connection.h)
+
+# Files related to the API
+set(SOURCE_FILES_API src/client.cpp
+        src/client.h)
+
+# Create client API library
+add_library(ResourceQueueAPI SHARED
+        src/client.cpp
+        include/client.h)
+
+# Files related to client example
+set(SOURCE_FILES_EXAMPLE_CLIENT examples/main.cpp include/client.h)
+
+include_directories(include)
+
+# Create executables
 add_executable(ResourceQueueServer ${SOURCE_FILES_SERVER})
-add_executable(ResourceQueueClient ${SOURCE_FILES_CLIENT})
+add_executable(ResourceQueueExampleClient ${SOURCE_FILES_EXAMPLE_CLIENT})
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(ResourceQueueServer ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(ResourceQueueClient ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(ResourceQueueAPI ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(ResourceQueueExampleClient ${CMAKE_THREAD_LIBS_INIT})
 
 find_package(Boost 1.64.0 COMPONENTS system coroutine serialization REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(ResourceQueueServer ${Boost_LIBRARIES})
-target_link_libraries(ResourceQueueClient ${Boost_LIBRARIES})
+target_link_libraries(ResourceQueueAPI ${Boost_LIBRARIES})
+target_link_libraries(ResourceQueueExampleClient ${Boost_LIBRARIES})
+
+target_link_libraries(ResourceQueueExampleClient ResourceQueueAPI)

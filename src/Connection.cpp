@@ -1,7 +1,7 @@
-#include "Connection.h"
+#include "../include/Connection.h"
 #include "iostream"
 #include <boost/asio/write.hpp>
-#include "ReservationRequest.h"
+#include "../include/ReservationRequest.h"
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/streambuf.hpp>
@@ -9,7 +9,7 @@
 namespace asio = boost::asio;
 using asio::ip::tcp;
 
-void Connection::go() {
+void Connection::begin() {
     auto self(shared_from_this());
     asio::spawn(socket.get_io_service(),
                 [this, self](asio::yield_context yield) {

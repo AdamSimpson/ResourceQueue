@@ -2,10 +2,10 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/spawn.hpp>
 #include <iostream>
-#include "Resource.h"
-#include "Reservation.h"
-#include "ResourceQueue.h"
-#include "Connection.h"
+#include "../include/Resource.h"
+#include "../include/Reservation.h"
+#include "../include/ResourceQueue.h"
+#include "../include/Connection.h"
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
                             tcp::socket socket(io_service);
                             acceptor.async_accept(socket, yield[ec]);
                             if (!ec)
-                                std::make_shared<Connection>(std::move(socket), job_queue)->go();
+                                std::make_shared<Connection>(std::move(socket), job_queue)->begin();
                         }
                     });
 

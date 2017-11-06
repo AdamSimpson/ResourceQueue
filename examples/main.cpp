@@ -2,7 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <boost/asio.hpp>
-#include "Resource.h"
+#include "client.h"
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
             std::cerr << "Usage: blocking_tcp_echo_client <host> <port>\n";
             return 1;
         }
-
+/*
         asio::io_service io_service;
 
         tcp::socket socket(io_service);
@@ -33,6 +33,7 @@ int main(int argc, char *argv[]) {
         // Let the queue know we're finished
         message = "finished\n";
         asio::write(socket, asio::buffer(message));
+        */
 
     }
     catch (std::exception &e) {

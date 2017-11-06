@@ -7,7 +7,7 @@ public:
     explicit Connection(tcp::socket socket, ResourceQueue &queue) : socket(std::move(socket)),
                                                                     queue(queue) {}
 
-    void go();
+    void begin();
 
 private:
     tcp::socket socket;

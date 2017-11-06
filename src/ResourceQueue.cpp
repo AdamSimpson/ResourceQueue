@@ -1,4 +1,4 @@
-#include "ResourceQueue.h"
+#include "../include/ResourceQueue.h"
 #include <iostream>
 
 // Create a new queue reservation and return it to the requester
