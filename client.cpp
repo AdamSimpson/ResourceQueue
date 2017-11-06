@@ -3,59 +3,11 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <system_error>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/string.hpp>
 #include <boost/serialization/serialization.hpp>
+#include "Resource.h"
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
-
-struct Resource {
-    int loop_id;
-    std::string host;
-};
-namespace boost {
-    namespace serialization {
-
-        template<class Archive>
-        void serialize(Archive &ar, Resource &res, const unsigned int version) {
-            ar & res.loop_id;
-            ar & res.host;
-        }
-    } // namespace serialization
-} // namespace boost
-
-std::string read_line(tcp::socket &socket) {
-    asio::streambuf reserve_buffer;
-    asio::read_until(socket, reserve_buffer, '\n');
-    std::istream reserve_stream(&reserve_buffer);
-    std::string reserve_string;
-    std::getline(reserve_stream, reserve_string);
-    return reserve_string;
-}
-
-// Read of a Resource
-// Read header consisting of 4 byte size, in bytes, of serialized Resource
-// followed by our serialized object
-Resource read_resource(tcp::socket &socket) {
-    // Read in 4 byte header
-    const size_t header_size = 4;
-    std::string header("", header_size);
-    asio::read(socket, asio::buffer(&header[0], header_size));
-    uint32_t resource_size = std::stoi(header);
-
-    // Read in serialized Resource
-    std::string serialized_resource("", resource_size);
-    asio::read(socket, asio::buffer(&serialized_resource[0], resource_size));
-
-    // de-serialize Resource
-    Resource resource;
-    std::istringstream archive_stream(serialized_resource);
-    boost::archive::text_iarchive archive(archive_stream);
-    archive >> resource;
-
-    return resource;
-}
 
 int main(int argc, char *argv[]) {
     try {

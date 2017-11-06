@@ -3,8 +3,8 @@ project(ResourceQueue)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(SOURCE_FILES_SERVER server.cpp)
-set(SOURCE_FILES_CLIENT client.cpp)
+set(SOURCE_FILES_SERVER server.cpp Resource.h Reservation.cpp Reservation.h ResourceQueue.cpp ResourceQueue.h ReservationRequest.cpp ReservationRequest.h Connection.cpp Connection.h)
+set(SOURCE_FILES_CLIENT client.cpp Resource.h Resource.cpp)
 add_executable(ResourceQueueServer ${SOURCE_FILES_SERVER})
 add_executable(ResourceQueueClient ${SOURCE_FILES_CLIENT})
 
